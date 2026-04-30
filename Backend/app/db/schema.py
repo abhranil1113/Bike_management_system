@@ -203,6 +203,7 @@ class User(UUIDPKMixin, TimestampMixin, Base):
         nullable=False,
         default=UserLifecycleStatus.ACTIVE,
     )
+    hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
  
     owner_profile: Mapped["OwnerProfile | None"] = relationship(
