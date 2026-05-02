@@ -4,6 +4,7 @@ from fastapi import FastAPI
 
 from app.db.init_db import init_db
 from app.auth.router import router as auth_router
+from app.profile import ownerprofile, driver_profile
 
 # ========================
 # APP INSTANCE
@@ -13,7 +14,8 @@ app = FastAPI(
     version="1.0.0"
 )
 
-
+app.include_router(ownerprofile.router)
+app.include_router(driver_profile.router)
 # ========================
 # STARTUP EVENT (FIXED STYLE)
 # ========================
