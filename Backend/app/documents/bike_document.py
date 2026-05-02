@@ -1,4 +1,5 @@
-#app/documents/bike_document.py
+# app/documents/bike_document.py
+
 import os
 import shutil
 from datetime import datetime
@@ -64,16 +65,20 @@ def upload_bike_documents(
     if bike.owner_user_id != current_user.id:
         raise HTTPException(403, "Not authorized")
 
-    # ❌ BLOCK IF LOCKED
+    # 🔥 FLOW CONTROL: Only allow in DRAFT or REJECTED
     if bike.verification_status in [
         BikeVerificationStatus.PENDING,
         BikeVerificationStatus.VERIFIED
     ]:
-        raise HTTPException(400, "Cannot upload in current status")
+        raise HTTPException(400, "Cannot upload documents in current status")
 
-    # ✅ RESET IF REJECTED
+    # 🔥 Reset if rejected
     if bike.verification_status == BikeVerificationStatus.REJECTED:
         bike.verification_status = BikeVerificationStatus.DRAFT
+
+    # ❗ At least one file required
+    if not any([rc_file, insurance_file, pollution_file, permit_file]):
+        raise HTTPException(400, "At least one document must be uploaded")
 
     # SAVE TEMP FILES
     if rc_file:
@@ -113,6 +118,7 @@ def submit_bike_documents(
     if bike.owner_user_id != current_user.id:
         raise HTTPException(403, "Not authorized")
 
+    # 🔥 BLOCK invalid states
     if bike.verification_status == BikeVerificationStatus.PENDING:
         raise HTTPException(400, "Already submitted")
 
@@ -121,7 +127,8 @@ def submit_bike_documents(
 
     temp_folder = os.path.join(TEMP_DIR, bike_id)
 
-    if not os.path.exists(temp_folder):
+    # ❗ Must upload before submit
+    if not os.path.exists(temp_folder) or not os.listdir(temp_folder):
         raise HTTPException(400, "No uploaded files found")
 
     final_folder = os.path.join(FINAL_DIR, bike_id)
@@ -158,6 +165,7 @@ def submit_bike_documents(
     document.pollution_file_path = final_paths.get("pollution")
     document.permit_file_path = final_paths.get("permit")
 
+    # 🔥 FLOW CHANGE
     bike.verification_status = BikeVerificationStatus.PENDING
 
     db.add(document)
