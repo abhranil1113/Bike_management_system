@@ -5,6 +5,8 @@ from fastapi import FastAPI
 from app.db.init_db import init_db
 from app.auth.router import router as auth_router
 from app.profile import ownerprofile, driver_profile
+from app.documents.bike_document import router as bike_document_router
+from app.documents import bike_images
 
 # ========================
 # APP INSTANCE
@@ -16,6 +18,8 @@ app = FastAPI(
 
 app.include_router(ownerprofile.router)
 app.include_router(driver_profile.router)
+app.include_router(bike_document_router)
+app.include_router(bike_images.router)
 # ========================
 # STARTUP EVENT (FIXED STYLE)
 # ========================
