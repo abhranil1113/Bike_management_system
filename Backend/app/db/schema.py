@@ -247,18 +247,37 @@ class User(UUIDPKMixin, TimestampMixin, Base):
  
 class OTPRequest(UUIDPKMixin, TimestampMixin, Base):
     __tablename__ = "otp_requests"
- 
-    phone: Mapped[str] = mapped_column(String(20), nullable=False)
-    otp_code_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+
+    email: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+        index=True
+    )
+
+    otp_code_hash: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False
+    )
+
     purpose: Mapped[OTPPurpose] = mapped_column(
         enum_type(OTPPurpose, "otp_purpose"),
         nullable=False,
         default=OTPPurpose.LOGIN,
     )
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
- 
-    __table_args__ = (Index("ix_otp_requests_phone_expires", "phone", "expires_at"),)
+
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False
+    )
+
+    used_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True
+    )
+
+    __table_args__ = (
+        Index("ix_otp_requests_email_expires", "email", "expires_at"),
+    )
  
  
 class UserSession(UUIDPKMixin, TimestampMixin, Base):
