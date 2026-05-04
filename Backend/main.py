@@ -9,6 +9,10 @@ from app.documents.bike_document import router as bike_document_router
 from app.documents import bike_images
 from app.bikes import bike
 from app.bikes import bike_price
+from app.booking.booking_request import router as booking_router
+from app.admin import driver_owner_approval, bike_approval
+from app.bikes import driver_view
+
 
 # ========================
 # APP INSTANCE
@@ -24,6 +28,10 @@ app.include_router(bike_document_router)
 app.include_router(bike_images.router)
 app.include_router(bike.router)
 app.include_router(bike_price.router)
+app.include_router(booking_router)
+app.include_router(bike_approval.router)
+app.include_router(driver_owner_approval.router)
+app.include_router(driver_view.router)
 # ========================
 # STARTUP EVENT (FIXED STYLE)
 # ========================
