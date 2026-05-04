@@ -183,6 +183,12 @@ class OutboxStatus(str, enum.Enum):
     PENDING = "pending"
     PROCESSED = "processed"
     FAILED = "failed"
+
+class BookingRequestStatus(str, enum.Enum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    CANCELLED = "cancelled"
  
  
 # ============================================================
@@ -278,8 +284,7 @@ class OTPRequest(UUIDPKMixin, TimestampMixin, Base):
     __table_args__ = (
         Index("ix_otp_requests_email_expires", "email", "expires_at"),
     )
- 
- 
+
 class UserSession(UUIDPKMixin, TimestampMixin, Base):
     __tablename__ = "user_sessions"
  
@@ -584,7 +589,36 @@ class DriverRentalLedger(UUIDPKMixin, TimestampMixin, Base):
         Index("ix_driver_rental_ledger_assignment_date", "assignment_id", "rental_date"),
     )
  
- 
+class BikeBookingRequest(UUIDPKMixin, TimestampMixin, Base):
+    __tablename__ = "bike_booking_requests"
+
+    driver_user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+
+    bike_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("bikes.id", ondelete="CASCADE"), nullable=False
+    )
+
+    status: Mapped[BookingRequestStatus] = mapped_column(
+        enum_type(BookingRequestStatus, "booking_request_status"),
+        nullable=False,
+        default=BookingRequestStatus.PENDING,
+    )
+
+    message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    rejected_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    driver: Mapped["User"] = relationship(foreign_keys=[driver_user_id])
+    bike: Mapped["Bike"] = relationship()
+
+    __table_args__ = (
+        Index("ix_booking_driver_status", "driver_user_id", "status"),
+        Index("ix_booking_bike_status", "bike_id", "status"),
+    )
+    
 class DriverSecurityDepositLedger(UUIDPKMixin, TimestampMixin, Base):
     __tablename__ = "driver_security_deposit_ledger"
  
