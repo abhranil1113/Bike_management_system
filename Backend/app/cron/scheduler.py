@@ -17,7 +17,6 @@ async def _cron_worker_loop(interval_seconds: int = 60):
     """
     Background worker loop executing scheduled cron jobs periodically.
     """
-    global _keep_running
     logger.info(f"[CRON SCHEDULER STARTED] Worker loop active every {interval_seconds}s.")
     
     while _keep_running:
@@ -52,7 +51,7 @@ def stop_cron_scheduler():
     """
     Stops background cron worker task during application shutdown.
     """
-    global _cron_task, _keep_running
+    global _keep_running
     _keep_running = False
     if _cron_task and not _cron_task.done():
         _cron_task.cancel()
