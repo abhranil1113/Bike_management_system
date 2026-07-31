@@ -23,6 +23,8 @@ from app.wallet.schemas import (
     VerifyRechargePaymentRequest,
     AdminWalletAdjustmentRequest,
 )
+from app.notifications.service import create_notification
+
 
 
 def get_or_create_user_wallet(db: Session, user_id: str) -> Wallet:
@@ -70,6 +72,12 @@ async def verify_and_credit_recharge_service(
 
     # Note: If running with mock keys during test/dev, allow mock signatures as fallback
     if generated_signature != req.razorpay_signature and not settings.DEBUG:
+        create_notification(
+            db,
+            user.id,
+            "Payment Failed",
+            "Your payment could not be completed. Please try again.",
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid Razorpay payment signature.",
@@ -88,6 +96,12 @@ async def verify_and_credit_recharge_service(
     )
     db.add(txn)
     db.commit()
+    create_notification(
+        db,
+        user.id,
+        "Payment Successful",
+        "Your payment has been completed successfully.",
+    )
 
     return {
         "message": f"Wallet recharged successfully with INR {amount}.",

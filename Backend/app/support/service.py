@@ -6,6 +6,7 @@ from fastapi import HTTPException
 
 from app.db.schema import User, SupportTicket, SupportStatus, utcnow
 from app.support.schemas import CreateSupportTicketRequest, ResolveSupportTicketRequest
+from app.notifications.service import create_notification
 
 
 async def create_support_ticket_service(
@@ -20,6 +21,14 @@ async def create_support_ticket_service(
     db.add(ticket)
     db.commit()
     db.refresh(ticket)
+
+    create_notification(
+        db,
+        user.id,
+        "Support Ticket Created",
+        "Your support request has been submitted successfully.",
+    )
+
     return {"message": "Support ticket created successfully.", "ticket_id": ticket.id}
 
 
@@ -34,10 +43,28 @@ async def resolve_support_ticket_service(
     if status_str == "resolved":
         ticket.status = SupportStatus.RESOLVED
         ticket.resolved_at = utcnow()
-    elif status_str == "rejected":
+        db.commit()
+        create_notification(
+            db,
+            ticket.user_id,
+            "Support Ticket Resolved",
+            "Your support request has been resolved.",
+        )
+    elif status_str in ["rejected", "closed"]:
         ticket.status = SupportStatus.REJECTED
+        db.commit()
+        reason_msg = (
+            f"Your support request has been closed. Reason: {req.reason}"
+            if req.reason
+            else "Your support request has been closed."
+        )
+        create_notification(
+            db,
+            ticket.user_id,
+            "Support Ticket Closed",
+            reason_msg,
+        )
     else:
         raise HTTPException(status_code=400, detail="Invalid status")
 
-    db.commit()
     return {"message": f"Support ticket marked as {ticket.status.value}."}

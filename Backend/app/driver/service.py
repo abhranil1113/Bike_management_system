@@ -22,6 +22,8 @@ from app.db.schema import (
 )
 from app.driver.schemas import DriverProfileUpdate, BikeSearchQuery, CreateBookingRequest
 from app.owner.service import save_uploaded_file
+from app.notifications.service import create_notification
+
 
 
 # ============================================================
@@ -44,6 +46,12 @@ async def update_driver_profile_service(
 
     db.commit()
     db.refresh(prof)
+    create_notification(
+        db,
+        user.id,
+        "Verification Submitted",
+        "Your verification documents have been submitted successfully and are under review.",
+    )
     return {"message": "Driver profile updated and submitted for admin verification."}
 
 
@@ -69,6 +77,12 @@ async def upload_driver_documents_service(
     prof.verification_requested_at = utcnow()
 
     db.commit()
+    create_notification(
+        db,
+        user.id,
+        "Verification Submitted",
+        "Your verification documents have been submitted successfully and are under review.",
+    )
     return {"message": "Driver KYC documents uploaded successfully."}
 
 
@@ -180,6 +194,13 @@ async def request_bike_booking_service(
     db.add(booking)
     db.commit()
     db.refresh(booking)
+
+    create_notification(
+        db,
+        bike.owner_user_id,
+        "New Booking Request",
+        "A driver has requested to book your bike.",
+    )
 
     return {
         "message": "Booking request sent to bike owner.",

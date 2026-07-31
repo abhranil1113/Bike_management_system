@@ -12,3 +12,4 @@ class CreateSupportTicketRequest(BaseModel):
 class ResolveSupportTicketRequest(BaseModel):
     ticket_id: str = Field(...)
     status: str = Field(..., example="resolved", description="resolved or rejected")
+    reason: Optional[str] = Field(None, example="Issue investigated and resolved")

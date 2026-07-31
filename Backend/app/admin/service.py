@@ -27,6 +27,8 @@ from app.db.schema import (
     utcnow,
 )
 from app.admin.schemas import PlatformSettingsUpdate, AdminDashboardStats
+from app.notifications.service import create_notification
+
 
 
 # ============================================================
@@ -65,6 +67,21 @@ async def review_owner_verification(
     db.commit()
     db.refresh(owner_profile)
 
+    if approved:
+        create_notification(
+            db,
+            owner_id,
+            "Verification Approved",
+            "Congratulations! Your owner verification has been approved.",
+        )
+    else:
+        create_notification(
+            db,
+            owner_id,
+            "Verification Rejected",
+            f"Your verification has been rejected. Reason: {owner_profile.rejection_reason}",
+        )
+
     return {"message": msg, "verification_status": owner_profile.verification_status.value}
 
 
@@ -98,6 +115,21 @@ async def review_driver_verification(
     db.commit()
     db.refresh(driver_profile)
 
+    if approved:
+        create_notification(
+            db,
+            driver_id,
+            "Verification Approved",
+            "Congratulations! Your driver verification has been approved.",
+        )
+    else:
+        create_notification(
+            db,
+            driver_id,
+            "Verification Rejected",
+            f"Your driver verification has been rejected. Reason: {driver_profile.rejection_reason}",
+        )
+
     return {"message": msg, "verification_status": driver_profile.verification_status.value}
 
 
@@ -128,6 +160,21 @@ async def review_bike_verification(
     db.add(audit)
     db.commit()
     db.refresh(bike)
+
+    if approved:
+        create_notification(
+            db,
+            bike.owner_user_id,
+            "Bike Approved",
+            "Your bike has been approved and is now available for booking.",
+        )
+    else:
+        create_notification(
+            db,
+            bike.owner_user_id,
+            "Bike Rejected",
+            f"Your bike verification has been rejected. Reason: {reason or 'Verification rejected by admin.'}",
+        )
 
     return {"message": msg, "verification_status": bike.verification_status.value}
 

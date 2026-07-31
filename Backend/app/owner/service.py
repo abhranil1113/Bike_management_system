@@ -37,6 +37,8 @@ from app.owner.schemas import (
     BookingDecisionRequest,
     ReturnBikeInspectionRequest,
 )
+from app.notifications.service import create_notification
+
 
 
 # Helper for saving uploaded files
@@ -72,6 +74,12 @@ async def update_owner_profile_service(
 
     db.commit()
     db.refresh(prof)
+    create_notification(
+        db,
+        user.id,
+        "Verification Submitted",
+        "Your verification documents have been submitted successfully and are waiting for admin review.",
+    )
     return {"message": "Owner profile updated and submitted for admin verification."}
 
 
@@ -100,6 +108,12 @@ async def upload_owner_documents_service(
     prof.verification_requested_at = utcnow()
 
     db.commit()
+    create_notification(
+        db,
+        user.id,
+        "Verification Submitted",
+        "Your verification documents have been submitted successfully and are waiting for admin review.",
+    )
     return {"message": "Owner KYC documents uploaded successfully."}
 
 
@@ -215,6 +229,12 @@ async def submit_bike_for_verification(db: Session, user: User, bike_id: str) ->
 
     bike.verification_status = BikeVerificationStatus.PENDING
     db.commit()
+    create_notification(
+        db,
+        user.id,
+        "Bike Submitted",
+        "Your bike has been submitted for verification.",
+    )
     return {"message": "Bike submitted to Admin for verification."}
 
 
@@ -240,6 +260,12 @@ async def handle_booking_request_service(
         booking.status = BookingRequestStatus.REJECTED
         booking.rejected_reason = req.rejection_reason or "Rejected by owner."
         db.commit()
+        rej_msg = (
+            f"Your bike booking request has been rejected. Reason: {req.rejection_reason}"
+            if req.rejection_reason
+            else "Your bike booking request has been rejected."
+        )
+        create_notification(db, booking.driver_user_id, "Booking Rejected", rej_msg)
         return {"message": "Booking request rejected."}
 
     # OWNER ACCEPTS BOOKING FLOW:
@@ -308,6 +334,18 @@ async def handle_booking_request_service(
 
 
     db.commit()
+    create_notification(
+        db,
+        booking.driver_user_id,
+        "Booking Approved",
+        "Your bike booking request has been approved.",
+    )
+    create_notification(
+        db,
+        booking.driver_user_id,
+        "Bike Assigned",
+        "A bike has been assigned to you.",
+    )
     return {
         "message": "Booking accepted and bike assigned to driver.",
         "assignment_id": assignment.id,
@@ -357,6 +395,12 @@ async def inspect_and_complete_return_service(
         bike.status = BikeStatus.AVAILABLE
 
     db.commit()
+    create_notification(
+        db,
+        assignment.driver_user_id,
+        "Assignment Ended",
+        "Your current bike assignment has ended.",
+    )
     return {
         "message": "Bike return processed successfully.",
         "damage_charged": float(damage),

@@ -10,6 +10,8 @@ from fastapi import HTTPException, status
 from app.core.config import settings
 from app.db.schema import User, Payment, PaymentStatus, BikeBookingRequest, utcnow
 from app.payment.schemas import PaymentCreateOrderRequest, PaymentVerifyRequest
+from app.notifications.service import create_notification
+
 
 
 async def create_booking_payment_order_service(
@@ -66,6 +68,12 @@ async def verify_booking_payment_service(
         payment.status = PaymentStatus.FAILED
         payment.failure_reason = "Signature verification failed"
         db.commit()
+        create_notification(
+            db,
+            user.id,
+            "Payment Failed",
+            "Your payment could not be completed. Please try again.",
+        )
         raise HTTPException(status_code=400, detail="Razorpay signature verification failed")
 
     payment.razorpay_payment_id = req.razorpay_payment_id
@@ -73,4 +81,10 @@ async def verify_booking_payment_service(
     payment.paid_at = utcnow()
 
     db.commit()
+    create_notification(
+        db,
+        user.id,
+        "Payment Successful",
+        "Your payment has been completed successfully.",
+    )
     return {"message": "Payment verified successfully.", "payment_id": payment.id}
