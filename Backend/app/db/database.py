@@ -13,7 +13,7 @@ DATABASE_URL = settings.DATABASE_URL
 # ========================
 engine = create_engine(
     DATABASE_URL,
-    echo=True,   # set False in production
+    echo=False,
     future=True
 )
 

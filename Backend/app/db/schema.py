@@ -118,6 +118,12 @@ class BikeVerificationStatus(str, enum.Enum):
     PENDING = "pending"
     VERIFIED = "verified"
     REJECTED = "rejected"
+
+class PaymentStatus(str, enum.Enum):
+    CREATED = "created"
+    SUCCESS = "success"
+    FAILED = "failed"
+
  
  
 class BikeOwnershipType(str, enum.Enum):
@@ -198,7 +204,7 @@ class BookingRequestStatus(str, enum.Enum):
  
 class User(UUIDPKMixin, TimestampMixin, Base):
     __tablename__ = "users"
- 
+
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     phone: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
     role: Mapped[UserRole] = mapped_column(
@@ -211,7 +217,10 @@ class User(UUIDPKMixin, TimestampMixin, Base):
     )
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
- 
+    is_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    failed_login_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     owner_profile: Mapped["OwnerProfile | None"] = relationship(
         back_populates="user",
         uselist=False,
@@ -224,7 +233,7 @@ class User(UUIDPKMixin, TimestampMixin, Base):
         cascade="all, delete-orphan",
         foreign_keys="DriverProfile.user_id",
     )
- 
+
     sessions: Mapped[list["UserSession"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
@@ -234,7 +243,7 @@ class User(UUIDPKMixin, TimestampMixin, Base):
     support_tickets: Mapped[list["SupportTicket"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
- 
+
     owned_bikes: Mapped[list["Bike"]] = relationship(
         back_populates="owner", foreign_keys="Bike.owner_user_id"
     )
@@ -244,7 +253,19 @@ class User(UUIDPKMixin, TimestampMixin, Base):
     owner_assignments: Mapped[list["DriverBikeAssignment"]] = relationship(
         back_populates="owner", foreign_keys="DriverBikeAssignment.owner_user_id"
     )
- 
+    wallet: Mapped["Wallet | None"] = relationship(
+        back_populates="user", uselist=False, cascade="all, delete-orphan"
+    )
+    payments: Mapped[list["Payment"]] = relationship(
+        back_populates="driver", foreign_keys="Payment.driver_user_id"
+    )
+    email_verification_tokens: Mapped[list["EmailVerificationToken"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+    password_reset_tokens: Mapped[list["PasswordResetToken"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+
     __table_args__ = (
         CheckConstraint("email <> ''", name="ck_users_email_nonempty"),
         CheckConstraint("phone <> ''", name="ck_users_phone_nonempty"),
@@ -292,12 +313,96 @@ class UserSession(UUIDPKMixin, TimestampMixin, Base):
         String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     token_hash: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    refresh_token_hash: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)
+    ip_address: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
  
     user: Mapped["User"] = relationship(back_populates="sessions")
  
     __table_args__ = (Index("ix_user_sessions_user_expires", "user_id", "expires_at"),)
+
+
+class EmailVerificationToken(UUIDPKMixin, Base):
+    __tablename__ = "email_verification_tokens"
+
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    token: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+
+    user: Mapped["User"] = relationship(back_populates="email_verification_tokens")
+
+
+class PasswordResetToken(UUIDPKMixin, Base):
+    __tablename__ = "password_reset_tokens"
+
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    token: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+
+    user: Mapped["User"] = relationship(back_populates="password_reset_tokens")
+
+
+class WalletTxnType(str, enum.Enum):
+    RECHARGE = "recharge"
+    DEBIT = "debit"
+    CREDIT = "credit"
+    REFUND = "refund"
+    ADMIN_ADJUSTMENT = "admin_adjustment"
+
+
+class WalletTxnStatus(str, enum.Enum):
+    PENDING = "pending"
+    SUCCESS = "success"
+    FAILED = "failed"
+
+
+class Wallet(UUIDPKMixin, TimestampMixin, Base):
+    __tablename__ = "wallets"
+
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False
+    )
+    balance: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("0.00"))
+
+    user: Mapped["User"] = relationship(back_populates="wallet")
+    transactions: Mapped[list["WalletTransaction"]] = relationship(
+        back_populates="wallet", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        CheckConstraint("balance >= 0", name="ck_wallets_balance_nonnegative"),
+    )
+
+
+class WalletTransaction(UUIDPKMixin, Base):
+    __tablename__ = "wallet_transactions"
+
+    wallet_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("wallets.id", ondelete="CASCADE"), nullable=False
+    )
+    amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    txn_type: Mapped[WalletTxnType] = mapped_column(
+        enum_type(WalletTxnType, "wallet_txn_type"), nullable=False
+    )
+    status: Mapped[WalletTxnStatus] = mapped_column(
+        enum_type(WalletTxnStatus, "wallet_txn_status"), nullable=False, default=WalletTxnStatus.SUCCESS
+    )
+    reference_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+
+    wallet: Mapped["Wallet"] = relationship(back_populates="transactions")
  
  
 # ============================================================
@@ -371,7 +476,10 @@ class DriverProfile(UUIDPKMixin, TimestampMixin, Base):
     )
     full_name: Mapped[str] = mapped_column(String(120), nullable=False)
     driving_license_number: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    driving_license_file_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
     aadhaar_number: Mapped[str | None] = mapped_column(String(12), nullable=True)
+    aadhaar_file_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    profile_picture_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
     emergency_contact_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     emergency_contact_phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
  
@@ -613,6 +721,9 @@ class BikeBookingRequest(UUIDPKMixin, TimestampMixin, Base):
 
     driver: Mapped["User"] = relationship(foreign_keys=[driver_user_id])
     bike: Mapped["Bike"] = relationship()
+    payments: Mapped[list["Payment"]] = relationship(
+        back_populates="booking", cascade="all, delete-orphan"
+    )
 
     __table_args__ = (
         Index("ix_booking_driver_status", "driver_user_id", "status"),
@@ -695,7 +806,96 @@ class OwnerPayoutLedger(UUIDPKMixin, TimestampMixin, Base):
         CheckConstraint("amount >= 0", name="ck_owner_payout_ledger_amount_nonnegative"),
         Index("ix_owner_payout_ledger_owner_status", "owner_user_id", "payout_status"),
     )
- 
+class Payment(UUIDPKMixin, TimestampMixin, Base):
+    __tablename__ = "payments"
+
+    # =========================================================
+    # FOREIGN KEYS
+    # =========================================================
+    booking_request_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("bike_booking_requests.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+    driver_user_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+    # =========================================================
+    # PAYMENT DETAILS
+    # =========================================================
+    amount: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2),
+        nullable=False,
+    )
+
+    currency: Mapped[str] = mapped_column(
+        String(10),
+        nullable=False,
+        default="INR",
+    )
+
+    # =========================================================
+    # RAZORPAY (MOCK / FUTURE REAL)
+    # =========================================================
+    razorpay_order_id: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        unique=True,
+    )
+
+    razorpay_payment_id: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+    )
+
+    # =========================================================
+    # STATUS
+    # =========================================================
+    status: Mapped[PaymentStatus] = mapped_column(
+        enum_type(PaymentStatus, "payment_status"),
+        nullable=False,
+        default=PaymentStatus.CREATED,
+    )
+
+    # =========================================================
+    # OPTIONAL (FAILURE / DEBUG)
+    # =========================================================
+    failure_reason: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    # =========================================================
+    # TIMESTAMPS
+    # =========================================================
+    paid_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    # =========================================================
+    # RELATIONSHIPS
+    # =========================================================
+    booking: Mapped["BikeBookingRequest"] = relationship(
+        back_populates="payments"
+    )
+
+    driver: Mapped["User"] = relationship(
+        back_populates="payments"
+    )
+
+    # =========================================================
+    # CONSTRAINTS & INDEXES
+    # =========================================================
+    __table_args__ = (
+        CheckConstraint("amount >= 0", name="ck_payments_amount_nonnegative"),
+        Index("ix_payments_driver_status", "driver_user_id", "status"),
+        Index("ix_payments_booking", "booking_request_id"),
+    ) 
  
 # ============================================================
 # NOTIFICATIONS / SUPPORT / AUDIT / SYSTEM
