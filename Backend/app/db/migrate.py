@@ -5,7 +5,7 @@ from app.db.database import engine
 from app.db.schema import Base
 
 def run_migrations():
-    """Adds missing columns and creates missing tables in existing database."""
+    """Adds missing columns, drops restrictive constraints, and creates missing tables in existing database."""
     print("[MIGRATION] Running schema migration...")
     with engine.begin() as conn:
         # 1. Alter users table
@@ -27,7 +27,13 @@ def run_migrations():
         # 4. Alter owner_profiles table
         conn.execute(text("ALTER TABLE owner_profiles ADD COLUMN IF NOT EXISTS profile_picture_path VARCHAR(255);"))
 
-    # 5. Create any new tables (email_verification_tokens, password_reset_tokens, wallets, wallet_transactions, etc.)
+        # 5. Drop nonnegative check constraint on wallets to support negative balance on overdue rental penalties
+        try:
+            conn.execute(text("ALTER TABLE wallets DROP CONSTRAINT IF EXISTS ck_wallets_balance_nonnegative;"))
+        except Exception as e:
+            print("[MIGRATION WARNING] Could not drop wallet constraint:", str(e))
+
+    # 6. Create any new tables (email_verification_tokens, password_reset_tokens, wallets, wallet_transactions, etc.)
     Base.metadata.create_all(bind=engine)
     print("[MIGRATION] Schema migration completed successfully!")
 

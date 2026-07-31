@@ -381,7 +381,7 @@ class Wallet(UUIDPKMixin, TimestampMixin, Base):
     )
 
     __table_args__ = (
-        CheckConstraint("balance >= 0", name="ck_wallets_balance_nonnegative"),
+        CheckConstraint("balance >= -100000", name="ck_wallets_balance_limit"),
     )
 
 
@@ -806,6 +806,29 @@ class OwnerPayoutLedger(UUIDPKMixin, TimestampMixin, Base):
         CheckConstraint("amount >= 0", name="ck_owner_payout_ledger_amount_nonnegative"),
         Index("ix_owner_payout_ledger_owner_status", "owner_user_id", "payout_status"),
     )
+
+
+class BikeReview(UUIDPKMixin, TimestampMixin, Base):
+    __tablename__ = "bike_reviews"
+
+    bike_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("bikes.id", ondelete="CASCADE"), nullable=False
+    )
+    driver_user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    rating: Mapped[int] = mapped_column(Integer, nullable=False)
+    comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    bike: Mapped["Bike"] = relationship()
+    driver: Mapped["User"] = relationship()
+
+    __table_args__ = (
+        CheckConstraint("rating >= 1 AND rating <= 5", name="ck_bike_reviews_rating_1_to_5"),
+        Index("ix_bike_reviews_bike_id", "bike_id"),
+    )
+
+
 class Payment(UUIDPKMixin, TimestampMixin, Base):
     __tablename__ = "payments"
 

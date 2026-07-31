@@ -1,11 +1,11 @@
 # app/driver/router.py
 
 from typing import Optional, List
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import APIRouter, Depends, File, UploadFile, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
-from app.db.schema import User, DriverBikeAssignment, BikeBookingRequest, AssignmentStatus
+from app.db.schema import User, DriverBikeAssignment, BikeBookingRequest, BookingRequestStatus, AssignmentStatus
 from app.api.deps import get_current_driver
 from app.schemas.auth_schema import StandardResponse
 from app.driver.schemas import DriverProfileUpdate, BikeSearchQuery, CreateBookingRequest
@@ -59,6 +59,30 @@ async def request_booking_api(
 ):
     res = await request_bike_booking_service(db, driver, req)
     return StandardResponse(success=True, message=res["message"], data=res)
+
+
+@router.post("/bookings/{booking_id}/cancel", response_model=StandardResponse, summary="Cancel Pending Booking Request")
+async def cancel_booking_api(
+    booking_id: str,
+    driver: User = Depends(get_current_driver),
+    db: Session = Depends(get_db)
+):
+    booking = db.query(BikeBookingRequest).filter(
+        BikeBookingRequest.id == booking_id,
+        BikeBookingRequest.driver_user_id == driver.id,
+    ).first()
+
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking request not found")
+
+    if booking.status != BookingRequestStatus.PENDING:
+        raise HTTPException(status_code=400, detail=f"Cannot cancel booking with status {booking.status.value}")
+
+    booking.status = BookingRequestStatus.REJECTED
+    booking.rejected_reason = "Cancelled by driver."
+    db.commit()
+
+    return StandardResponse(success=True, message="Booking request cancelled successfully.")
 
 
 @router.get("/active-assignment", response_model=StandardResponse, summary="Get Driver's Current Active Bike Assignment")

@@ -39,9 +39,36 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - RAZORPAY_KEY_ID=rzp_test_key_id_12345
       - RAZORPAY_SECRET=rzp_test_secret_67890
+      - STORAGE_PROVIDER=local
     depends_on:
       - db
       - redis
+
+  worker:
+    build:
+      context: ./Backend
+      dockerfile: Dockerfile
+    container_name: bike_cron_worker
+    restart: always
+    command: python -c "from app.db.database import SessionLocal; from app.cron.jobs import run_all_cron_jobs; import time; print('[WORKER STARTS]'); [run_all_cron_jobs(SessionLocal()) or time.sleep(60) for _ in iter(int, 1)]"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgrespassword@db:5432/bike_db
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+      - backend
+
+  nginx:
+    image: nginx:alpine
+    container_name: bike_nginx_proxy
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - backend
 
 volumes:
   postgres_data:
