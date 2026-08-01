@@ -36,11 +36,12 @@ def start_cron_scheduler(interval_seconds: int = 60):
     """
     Starts background cron worker task inside FastAPI asyncio event loop.
     """
+    global _cron_task, _keep_running
     if _cron_task is None or _cron_task.done():
-        globals()["_keep_running"] = True
+        _keep_running = True
         try:
             loop = asyncio.get_running_loop()
-            globals()["_cron_task"] = loop.create_task(_cron_worker_loop(interval_seconds))
+            _cron_task = loop.create_task(_cron_worker_loop(interval_seconds))
             logger.info("[CRON SCHEDULER] Background worker successfully spawned.")
         except RuntimeError:
             logger.warning("[CRON SCHEDULER] Event loop not running. Worker skipped.")
@@ -50,7 +51,8 @@ def stop_cron_scheduler():
     """
     Stops background cron worker task during application shutdown.
     """
-    globals()["_keep_running"] = False
+    global _keep_running
+    _keep_running = False
     if _cron_task and not _cron_task.done():
         _cron_task.cancel()
         logger.info("[CRON SCHEDULER] Background worker task cancelled.")
