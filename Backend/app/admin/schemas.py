@@ -30,5 +30,7 @@ class AdminDashboardStats(BaseModel):
     pending_owner_verifications: int
     pending_driver_verifications: int
     pending_bike_verifications: int
+    cod_unpaid_count: Optional[int] = 0
+    cod_escalations_count: Optional[int] = 0
     total_revenue: Decimal
     total_platform_commission: Decimal

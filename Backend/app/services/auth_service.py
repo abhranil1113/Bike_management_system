@@ -71,13 +71,13 @@ async def register_user(
     user_agent: Optional[str] = None,
 ) -> Dict[str, Any]:
     # 1. Check existing email & phone
-    if db.query(User).filter(User.email == request.email).first():
+    if db.query(User).filter(User.email == request.email.lower()).first():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User with this email address already exists.",
         )
 
-    if db.query(User).filter(User.phone == request.phone).first():
+    if db.query(User).filter(User.phone == request.phone.strip()).first():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User with this phone number already exists.",

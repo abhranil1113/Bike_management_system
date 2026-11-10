@@ -123,6 +123,7 @@ class PaymentStatus(str, enum.Enum):
     CREATED = "created"
     SUCCESS = "success"
     FAILED = "failed"
+    REFUNDED = "refunded"
 
  
  
@@ -195,6 +196,7 @@ class BookingRequestStatus(str, enum.Enum):
     APPROVED = "approved"
     REJECTED = "rejected"
     CANCELLED = "cancelled"
+    REFUNDED = "refunded"
  
  
 # ============================================================
@@ -479,6 +481,9 @@ class DriverProfile(UUIDPKMixin, TimestampMixin, Base):
     driving_license_file_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
     aadhaar_number: Mapped[str | None] = mapped_column(String(12), nullable=True)
     aadhaar_file_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    pan_number: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    pan_file_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    address: Mapped[str | None] = mapped_column(Text, nullable=True)
     profile_picture_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
     emergency_contact_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     emergency_contact_phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
@@ -547,6 +552,7 @@ class Bike(UUIDPKMixin, TimestampMixin, Base):
     documents: Mapped[list["BikeDocument"]] = relationship(back_populates="bike", cascade="all, delete-orphan")
     images: Mapped[list["BikeImage"]] = relationship(back_populates="bike", cascade="all, delete-orphan")
     pricing: Mapped["BikePricing | None"] = relationship(back_populates="bike", uselist=False, cascade="all, delete-orphan")
+    tariffs: Mapped[list["BikeTariff"]] = relationship(back_populates="bike", cascade="all, delete-orphan")
     assignments: Mapped[list["DriverBikeAssignment"]] = relationship(back_populates="bike")
     maintenance_logs: Mapped[list["BikeMaintenanceLedger"]] = relationship(back_populates="bike")
  
@@ -604,10 +610,12 @@ class BikePricing(UUIDPKMixin, TimestampMixin, Base):
         String(36), ForeignKey("bikes.id", ondelete="CASCADE"), unique=True, nullable=False
     )
     daily_rent: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    hourly_rate: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True, default=Decimal("100.00"))
     weekly_rent: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     monthly_rent: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     security_deposit: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     late_fee_per_day: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("0.00"))
+    late_fee_per_hour: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True, default=Decimal("50.00"))
  
     bike: Mapped["Bike"] = relationship(back_populates="pricing")
  
@@ -615,6 +623,29 @@ class BikePricing(UUIDPKMixin, TimestampMixin, Base):
         CheckConstraint("daily_rent >= 0", name="ck_bike_pricing_daily_nonnegative"),
         CheckConstraint("security_deposit >= 0", name="ck_bike_pricing_deposit_nonnegative"),
         CheckConstraint("late_fee_per_day >= 0", name="ck_bike_pricing_late_fee_nonnegative"),
+    )
+
+
+class BikeTariff(UUIDPKMixin, TimestampMixin, Base):
+    """
+    Time-based tariffs configured by the scooty owner.
+    Supports flexible custom durations (e.g. 1 hr = ₹100, 2 hrs = ₹200, 4 hrs = ₹380, etc.)
+    """
+    __tablename__ = "bike_tariffs"
+
+    bike_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("bikes.id", ondelete="CASCADE"), nullable=False
+    )
+    hours: Mapped[int] = mapped_column(Integer, nullable=False)
+    price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+
+    bike: Mapped["Bike"] = relationship(back_populates="tariffs")
+
+    __table_args__ = (
+        UniqueConstraint("bike_id", "hours", name="uq_bike_tariffs_bike_hours"),
+        CheckConstraint("hours > 0", name="ck_bike_tariffs_hours_positive"),
+        CheckConstraint("price >= 0", name="ck_bike_tariffs_price_nonnegative"),
+        Index("ix_bike_tariffs_bike_id", "bike_id"),
     )
  
  
@@ -642,6 +673,13 @@ class DriverBikeAssignment(UUIDPKMixin, TimestampMixin, Base):
     daily_rent_amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     weekly_target_amount: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     security_deposit_amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("0.00"))
+    rental_hours: Mapped[int | None] = mapped_column(Integer, nullable=True, default=24)
+    total_rent_amount: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True, default=Decimal("0.00"))
+    payment_method: Mapped[str] = mapped_column(String(30), nullable=False, default="cod")
+    cash_received: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    cash_received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_cod_reminder_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    cod_admin_escalated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
  
     status: Mapped[AssignmentStatus] = mapped_column(
         enum_type(AssignmentStatus, "assignment_status"),
@@ -715,6 +753,13 @@ class BikeBookingRequest(UUIDPKMixin, TimestampMixin, Base):
     )
 
     message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    rental_hours: Mapped[int | None] = mapped_column(Integer, nullable=True, default=24)
+    total_amount: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True, default=Decimal("0.00"))
+    payment_method: Mapped[str] = mapped_column(String(30), nullable=False, default="cod")
+    cash_received: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    cash_received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    cod_admin_escalated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     rejected_reason: Mapped[str | None] = mapped_column(Text, nullable=True)

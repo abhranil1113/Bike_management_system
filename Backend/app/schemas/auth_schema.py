@@ -11,8 +11,8 @@ class RegisterRequest(BaseModel):
     full_name: str = Field(..., min_length=2, max_length=120, example="John Doe")
     email: EmailStr = Field(..., example="johndoe@example.com")
     phone: str = Field(..., min_length=10, max_length=15, example="9876543210")
-    password: str = Field(..., min_length=8, example="Secret123!")
-    confirm_password: str = Field(..., min_length=8, example="Secret123!")
+    password: str = Field(..., min_length=6, example="Secret123!")
+    confirm_password: str = Field(..., min_length=6, example="Secret123!")
     role: Literal["owner", "driver", "admin"] = Field(..., example="driver")
 
     @model_validator(mode="after")
@@ -46,8 +46,8 @@ class ForgotPasswordRequest(BaseModel):
 
 class ResetPasswordRequest(BaseModel):
     reset_token: str = Field(..., description="Password reset token sent to email")
-    new_password: str = Field(..., min_length=8, example="NewSecret123!")
-    confirm_password: str = Field(..., min_length=8, example="NewSecret123!")
+    new_password: str = Field(..., min_length=6, example="NewSecret123!")
+    confirm_password: str = Field(..., min_length=6, example="NewSecret123!")
 
     @model_validator(mode="after")
     def passwords_match(self):
@@ -61,8 +61,8 @@ class ResetPasswordRequest(BaseModel):
 # ========================
 class ChangePasswordRequest(BaseModel):
     current_password: str = Field(..., example="OldSecret123!")
-    new_password: str = Field(..., min_length=8, example="NewSecret123!")
-    confirm_password: str = Field(..., min_length=8, example="NewSecret123!")
+    new_password: str = Field(..., min_length=6, example="NewSecret123!")
+    confirm_password: str = Field(..., min_length=6, example="NewSecret123!")
 
     @model_validator(mode="after")
     def passwords_match(self):

@@ -1,0 +1,16 @@
+{
+  "name": "bike-management-system",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "migrate": "python Backend/run_migration.py",
+    "dev": "npm --prefix Frontend run dev",
+    "dev:driver": "npm --prefix Frontend run dev:driver",
+    "dev:owner": "npm --prefix Frontend run dev:owner",
+    "dev:admin": "npm --prefix Frontend run dev:admin",
+    "build": "npm --prefix Frontend run build",
+    "build:driver": "npm --prefix Frontend run build:driver",
+    "build:owner": "npm --prefix Frontend run build:owner",
+    "build:admin": "npm --prefix Frontend run build:admin"
+  }
+}

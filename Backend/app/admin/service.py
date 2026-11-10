@@ -17,8 +17,13 @@ from app.db.schema import (
     Bike,
     BikeStatus,
     BikeVerificationStatus,
+    BikePricing,
+    BikeDocument,
+    BikeImage,
     Payment,
     PaymentStatus,
+    DriverBikeAssignment,
+    AssignmentStatus,
     PlatformSettings,
     AdminAuditLog,
     AuditActorType,
@@ -53,6 +58,10 @@ async def review_owner_verification(
         owner_profile.verification_status = OwnerVerificationStatus.REJECTED
         owner_profile.rejection_reason = reason or "Verification rejected by admin."
         msg = "Owner verification rejected."
+
+    owner_user = db.query(User).filter(User.id == owner_id).first()
+    if owner_user:
+        owner_user.is_verified = approved
 
     # Audit log
     audit = AdminAuditLog(
@@ -102,6 +111,10 @@ async def review_driver_verification(
         driver_profile.verification_status = DriverVerificationStatus.REJECTED
         driver_profile.rejection_reason = reason or "Verification rejected by admin."
         msg = "Driver verification rejected."
+
+    driver_user = db.query(User).filter(User.id == driver_id).first()
+    if driver_user:
+        driver_user.is_verified = approved
 
     audit = AdminAuditLog(
         actor_user_id=admin_id,
@@ -234,6 +247,20 @@ async def get_admin_dashboard_stats(db: Session) -> Dict[str, Any]:
     pending_drivers = db.query(DriverProfile).filter(DriverProfile.verification_status == DriverVerificationStatus.PENDING).count()
     pending_bikes = db.query(Bike).filter(Bike.verification_status == BikeVerificationStatus.PENDING).count()
 
+    # Cash on Delivery tracking
+    cod_unpaid_count = db.query(DriverBikeAssignment).filter(
+        DriverBikeAssignment.status == AssignmentStatus.ACTIVE,
+        DriverBikeAssignment.payment_method == "cod",
+        DriverBikeAssignment.cash_received == False,
+    ).count()
+
+    cod_escalations_count = db.query(DriverBikeAssignment).filter(
+        DriverBikeAssignment.status == AssignmentStatus.ACTIVE,
+        DriverBikeAssignment.payment_method == "cod",
+        DriverBikeAssignment.cash_received == False,
+        DriverBikeAssignment.cod_admin_escalated == True,
+    ).count()
+
     tot_payments = db.query(func.sum(Payment.amount)).filter(Payment.status == PaymentStatus.SUCCESS).scalar() or Decimal("0.00")
 
     settings = db.query(PlatformSettings).first()
@@ -250,6 +277,8 @@ async def get_admin_dashboard_stats(db: Session) -> Dict[str, Any]:
         "pending_owner_verifications": pending_owners,
         "pending_driver_verifications": pending_drivers,
         "pending_bike_verifications": pending_bikes,
+        "cod_unpaid_count": cod_unpaid_count,
+        "cod_escalations_count": cod_escalations_count,
         "total_revenue": float(tot_payments),
         "total_platform_commission": float(tot_commission),
     }
@@ -275,3 +304,146 @@ async def update_platform_settings(db: Session, admin_id: str, req: PlatformSett
     db.commit()
 
     return {"message": "Platform settings updated successfully."}
+
+
+async def get_all_drivers_service(db: Session, status: Optional[str] = None) -> List[Dict[str, Any]]:
+    query = db.query(DriverProfile).join(DriverProfile.user)
+    if status:
+        query = query.filter(DriverProfile.verification_status == DriverVerificationStatus(status.lower()))
+    drivers = query.all()
+    res = []
+    for d in drivers:
+        res.append({
+            "user_id": d.user_id,
+            "email": d.user.email,
+            "phone": d.user.phone,
+            "role": d.user.role.value if hasattr(d.user.role, "value") else str(d.user.role),
+            "is_active": d.user.is_active,
+            "full_name": d.full_name,
+            "address": getattr(d, "address", "") or "",
+            "driving_license_number": d.driving_license_number,
+            "driving_license_file": d.driving_license_file_path,
+            "aadhaar_number": d.aadhaar_number,
+            "aadhaar_file": d.aadhaar_file_path,
+            "pan_number": getattr(d, "pan_number", "") or "",
+            "pan_file": getattr(d, "pan_file_path", "") or "",
+            "profile_picture": d.profile_picture_path,
+            "emergency_contact": {
+                "name": d.emergency_contact_name,
+                "phone": d.emergency_contact_phone,
+            },
+            "verification_status": d.verification_status.value if hasattr(d.verification_status, "value") else str(d.verification_status),
+            "rejection_reason": d.rejection_reason,
+            "reviewed_at": d.reviewed_at.isoformat() if d.reviewed_at else None,
+            "created_at": d.created_at.isoformat() if hasattr(d, "created_at") and d.created_at else None,
+        })
+    return res
+
+
+async def get_all_owners_service(db: Session, status: Optional[str] = None) -> List[Dict[str, Any]]:
+    query = db.query(OwnerProfile).join(OwnerProfile.user)
+    if status:
+        query = query.filter(OwnerProfile.verification_status == OwnerVerificationStatus(status.lower()))
+    owners = query.all()
+    res = []
+    for o in owners:
+        res.append({
+            "user_id": o.user_id,
+            "email": o.user.email,
+            "role": o.user.role.value if hasattr(o.user.role, "value") else str(o.user.role),
+            "is_active": o.user.is_active,
+            "full_name": o.full_name,
+            "phone": o.phone,
+            "business_name": o.business_name,
+            "profile_picture": o.profile_picture_path,
+            "aadhaar_number": o.aadhaar_number,
+            "pan_number": o.pan_number,
+            "aadhaar_file": o.aadhaar_file_path,
+            "pan_file": o.pan_file_path,
+            "passbook_file": o.passbook_file_path,
+            "bank_account": {
+                "name": o.bank_account_name,
+                "number": o.bank_account_number,
+                "ifsc": o.ifsc_code,
+            },
+            "address": {
+                "line_1": o.address_line_1,
+                "line_2": o.address_line_2,
+                "city": o.city,
+                "state": o.state,
+                "postal_code": o.postal_code,
+            },
+            "verification_status": o.verification_status.value if hasattr(o.verification_status, "value") else str(o.verification_status),
+            "rejection_reason": o.rejection_reason,
+            "reviewed_at": o.reviewed_at.isoformat() if o.reviewed_at else None,
+            "created_at": o.created_at.isoformat() if hasattr(o, "created_at") and o.created_at else None,
+        })
+    return res
+
+
+async def get_all_bikes_service(db: Session, status: Optional[str] = None) -> List[Dict[str, Any]]:
+    query = db.query(Bike)
+    if status:
+        query = query.filter(Bike.verification_status == BikeVerificationStatus(status.lower()))
+    bikes = query.order_by(Bike.created_at.desc()).all()
+    res = []
+    for b in bikes:
+        docs = b.documents[0] if b.documents else None
+        pricing = b.pricing
+        images = [img.image_path for img in b.images]
+        res.append({
+            "id": b.id,
+            "owner_user_id": b.owner_user_id,
+            "owner_email": b.owner.email if b.owner else None,
+            "bike_name": b.bike_name,
+            "brand": b.brand,
+            "model": b.model,
+            "registration_number": b.registration_number,
+            "color": b.color,
+            "fuel_type": b.fuel_type.value if hasattr(b.fuel_type, "value") else str(b.fuel_type),
+            "ownership_type": b.ownership_type.value if hasattr(b.ownership_type, "value") else str(b.ownership_type),
+            "km_driven": b.km_driven,
+            "year_of_purchase": b.year_of_purchase,
+            "status": b.status.value if hasattr(b.status, "value") else str(b.status),
+            "verification_status": b.verification_status.value if hasattr(b.verification_status, "value") else str(b.verification_status),
+            "is_active": b.is_active,
+            "created_at": b.created_at.isoformat() if b.created_at else None,
+            "pricing": {
+                "daily_rent": float(pricing.daily_rent) if pricing else 0.0,
+                "weekly_rent": float(pricing.weekly_rent) if pricing and pricing.weekly_rent else None,
+                "monthly_rent": float(pricing.monthly_rent) if pricing and pricing.monthly_rent else None,
+                "security_deposit": float(pricing.security_deposit) if pricing else 0.0,
+                "late_fee_per_day": float(pricing.late_fee_per_day) if pricing else 0.0,
+            } if pricing else None,
+            "documents": {
+                "rc": docs.rc_file_path if docs else None,
+                "insurance": docs.insurance_file_path if docs else None,
+                "pollution": docs.pollution_file_path if docs else None,
+                "permit": docs.permit_file_path if docs else None,
+            } if docs else None,
+            "images": images,
+        })
+    return res
+
+
+async def get_all_users_service(db: Session, role: Optional[str] = None, status: Optional[str] = None) -> List[Dict[str, Any]]:
+    query = db.query(User)
+    if role:
+        query = query.filter(User.role == UserRole(role.lower()))
+    if status:
+        query = query.filter(User.lifecycle_status == UserLifecycleStatus(status.lower()))
+    users = query.order_by(User.created_at.desc()).all()
+    res = []
+    for u in users:
+        res.append({
+            "id": u.id,
+            "email": u.email,
+            "phone": u.phone,
+            "role": u.role.value if hasattr(u.role, "value") else str(u.role),
+            "lifecycle_status": u.lifecycle_status.value if hasattr(u.lifecycle_status, "value") else str(u.lifecycle_status),
+            "is_active": u.is_active,
+            "is_verified": u.is_verified,
+            "wallet_balance": float(u.wallet.balance) if u.wallet else 0.0,
+            "created_at": u.created_at.isoformat() if u.created_at else None,
+        })
+    return res

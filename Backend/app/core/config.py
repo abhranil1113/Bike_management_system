@@ -1,6 +1,9 @@
-#app/core/config.py
-from pydantic_settings import BaseSettings
+
+# app/core/config.py
+
 from functools import lru_cache
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -19,7 +22,7 @@ class Settings(BaseSettings):
     # JWT AUTH
     # ========================
     JWT_SECRET_KEY: str
-    REFRESH_SECRET_KEY: str = "super_secret_refresh_key_987654321_bike_sys"
+    REFRESH_SECRET_KEY: str
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
@@ -34,8 +37,8 @@ class Settings(BaseSettings):
     # ========================
     # RAZORPAY CONFIG
     # ========================
-    RAZORPAY_KEY_ID: str = "rzp_test_key_id_12345"
-    RAZORPAY_SECRET: str = "rzp_test_secret_67890"
+    RAZORPAY_KEY_ID: str = ""
+    RAZORPAY_SECRET: str = ""
 
     # ========================
     # REDIS CONFIG
@@ -56,10 +59,11 @@ class Settings(BaseSettings):
     # ========================
     # ENV CONFIG
     # ========================
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
-        extra = "ignore"
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=True,
+        extra="ignore",
+    )
 
 
 # Singleton instance (recommended)
@@ -69,4 +73,4 @@ def get_settings() -> Settings:
 
 
 # Direct access (optional shortcut)
-settings = get_settings()
+settings = get_settings()

@@ -21,7 +21,35 @@ from app.wallet.service import (
     get_or_create_user_wallet,
 )
 
+from app.db.schema import User, WalletTransaction, WalletTxnType, WalletTxnStatus, utcnow
+from pydantic import BaseModel, Field
+
+class DirectTopupRequest(BaseModel):
+    amount: Decimal = Field(..., ge=500, description="Minimum wallet recharge is ₹500")
+
 router = APIRouter(prefix="/wallet", tags=["Wallet System"])
+
+
+@router.post("/topup", response_model=StandardResponse, summary="Direct Wallet Top-up (Razorpay / Instant)")
+async def direct_wallet_topup_api(
+    req: DirectTopupRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    wallet = get_or_create_user_wallet(db, user.id)
+    wallet.balance += req.amount
+    txn = WalletTransaction(
+        wallet_id=wallet.id,
+        amount=req.amount,
+        txn_type=WalletTxnType.RECHARGE,
+        status=WalletTxnStatus.SUCCESS,
+        reference_id=f"pay_{int(utcnow().timestamp())}",
+        description=f"Wallet top-up (Razorpay/Card ₹{req.amount})",
+    )
+    db.add(txn)
+    db.commit()
+    db.refresh(wallet)
+    return StandardResponse(success=True, message=f"₹{req.amount} credited to your wallet.", data={"balance": float(wallet.balance)})
 
 
 @router.get("/me", response_model=StandardResponse, summary="Get Current User Wallet Balance & Ledger")

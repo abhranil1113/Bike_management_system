@@ -101,10 +101,15 @@ def get_available_bikes(
             },
             "pricing": {
                 "daily_rent": float(pricing.daily_rent) if pricing else None,
+                "hourly_rate": float(pricing.hourly_rate) if (pricing and pricing.hourly_rate) else 100.0,
                 "weekly_rent": float(pricing.weekly_rent) if pricing and pricing.weekly_rent else None,
                 "monthly_rent": float(pricing.monthly_rent) if pricing and pricing.monthly_rent else None,
                 "security_deposit": float(pricing.security_deposit) if pricing else None,
             },
+            "tariffs": [
+                {"id": t.id, "hours": t.hours, "price": float(t.price)}
+                for t in bike.tariffs
+            ] if bike.tariffs else [],
             "documents": {
                 "rc": documents.rc_file_path if documents else None,
                 "insurance": documents.insurance_file_path if documents else None,

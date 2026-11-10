@@ -7,6 +7,8 @@ from typing import Dict, Any, List
 from sqlalchemy.orm import Session
 
 from app.db.schema import (
+    User,
+    UserRole,
     BikeBookingRequest,
     BookingRequestStatus,
     DriverBikeAssignment,
@@ -267,6 +269,115 @@ def check_bike_maintenance_and_insurance_expiries(db: Session) -> Dict[str, Any]
 
 
 # ============================================================
+# CRON JOB 5: 10-MIN COD DRIVER REMINDER & 10-HOUR ADMIN ESCALATION
+# ============================================================
+
+def check_cod_payment_reminders_and_escalations(db: Session) -> Dict[str, Any]:
+    """
+    Cron Job:
+    1. Checks active rentals with payment_method == 'cod' and cash_received == False.
+    2. Every 10 minutes: sends reminder notification to driver via DB and WebSocket.
+    3. If elapsed time >= 10 hours and cash is still unreceived:
+       Escalates to Admin via DB notification and WebSocket alert!
+    """
+    now = utcnow()
+    active_cod_assignments = (
+        db.query(DriverBikeAssignment)
+        .filter(
+            DriverBikeAssignment.status == AssignmentStatus.ACTIVE,
+            DriverBikeAssignment.payment_method == "cod",
+            DriverBikeAssignment.cash_received == False,
+        )
+        .all()
+    )
+
+    reminders_sent = 0
+    escalations_sent = 0
+
+    for assign in active_cod_assignments:
+        elapsed_seconds = (now - assign.assigned_at).total_seconds()
+        elapsed_minutes = int(elapsed_seconds // 60)
+        elapsed_hours = int(elapsed_seconds // 3600)
+        rent_amount = assign.total_rent_amount or assign.daily_rent_amount
+        bike = assign.bike
+        bike_label = f"{bike.bike_name} ({bike.registration_number})" if bike else "Scooty"
+
+        # 1. Ten-minute interval reminder for Driver
+        # If elapsed >= 10 mins and either last_cod_reminder_at is None or >= 10 mins since last reminder
+        send_reminder = False
+        if elapsed_minutes >= 10:
+            if not assign.last_cod_reminder_at:
+                send_reminder = True
+            else:
+                mins_since_last = int((now - assign.last_cod_reminder_at).total_seconds() // 60)
+                if mins_since_last >= 10:
+                    send_reminder = True
+
+        if send_reminder:
+            assign.last_cod_reminder_at = now
+            create_notification(
+                db=db,
+                user_id=assign.driver_user_id,
+                title="Reminder: Settle Cash on Delivery",
+                message=f"Your scooty rental of {bike_label} has a pending cash payment of ₹{rent_amount}. Please hand over cash to the owner promptly.",
+            )
+            socket_manager.notify_user_sync(
+                assign.driver_user_id,
+                {
+                    "assignment_id": assign.id,
+                    "amount": float(rent_amount),
+                    "elapsed_minutes": elapsed_minutes,
+                    "message": f"Reminder: Cash on Delivery payment of ₹{rent_amount} is pending.",
+                },
+                event_type="cash_payment_reminder",
+            )
+            reminders_sent += 1
+
+        # 2. Ten-hour escalation to Admin
+        if elapsed_hours >= 10 and not assign.cod_admin_escalated:
+            assign.cod_admin_escalated = True
+            admins = db.query(User).filter(User.role == UserRole.ADMIN).all()
+            driver = assign.driver
+            owner = assign.owner
+            for admin in admins:
+                create_notification(
+                    db=db,
+                    user_id=admin.id,
+                    title="URGENT: COD Cash Uncollected > 10 Hours",
+                    message=(
+                        f"Urgent COD Escalation: Driver {driver.email if driver else 'Driver'} "
+                        f"has not settled cash of ₹{rent_amount} for scooty {bike_label} "
+                        f"with Owner {owner.email if owner else 'Owner'} for over {elapsed_hours} hours!"
+                    ),
+                )
+                socket_manager.notify_user_sync(
+                    admin.id,
+                    {
+                        "alert": "cod_overdue_10h",
+                        "assignment_id": assign.id,
+                        "driver_email": driver.email if driver else "",
+                        "owner_email": owner.email if owner else "",
+                        "bike": bike_label,
+                        "amount": float(rent_amount),
+                        "elapsed_hours": elapsed_hours,
+                    },
+                    event_type="admin_cod_escalation",
+                )
+            escalations_sent += 1
+
+    db.commit()
+    logger.info(
+        f"[CRON COD STATUS] Processed {len(active_cod_assignments)} COD rentals. Reminders sent: {reminders_sent}, Admin escalations: {escalations_sent}."
+    )
+    return {
+        "status": "success",
+        "active_cod_checked": len(active_cod_assignments),
+        "reminders_sent": reminders_sent,
+        "escalations_sent": escalations_sent,
+    }
+
+
+# ============================================================
 # MASTER UNIFIED CRON RUNNER
 # ============================================================
 
@@ -278,6 +389,7 @@ def run_all_cron_jobs(db: Session) -> Dict[str, Any]:
     res2 = process_overdue_rental_penalties(db)
     res3 = generate_daily_rental_ledgers_and_overdue_notices(db)
     res4 = check_bike_maintenance_and_insurance_expiries(db)
+    res5 = check_cod_payment_reminders_and_escalations(db)
 
     return {
         "timestamp": utcnow().isoformat(),
@@ -285,4 +397,5 @@ def run_all_cron_jobs(db: Session) -> Dict[str, Any]:
         "overdue_penalty_job": res2,
         "rental_ledger_job": res3,
         "maintenance_check_job": res4,
+        "cod_reminders_and_escalations_job": res5,
     }

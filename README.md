@@ -1,98 +1,122 @@
-# VeloRent Pro - Enterprise Bike Management & Rental System
+# VeloRent Pro - Enterprise Bike & Scooty Management & Rental System
 
-Welcome to the **VeloRent Pro** repository! This is a production-grade, full-stack bike management and rental platform built with FastAPI, React, PostgreSQL, Redis, Docker, and GitHub Actions CI/CD.
+Welcome to the **VeloRent Pro** repository! This is a production-grade, full-stack scooty/bike rental and fleet management platform built with FastAPI, React, PostgreSQL, Redis, Docker, and GitHub Actions CI/CD.
 
 ---
 
-## 🚀 Architecture & Tech Stack
+## 🚀 3 Dedicated Frontend Portals & Independent Ports
+
+The frontend has been completely decoupled into **3 distinct, clean, and modern web applications**, each running on its dedicated port with an intuitive, tasteful UI palette (no neon/cyberpunk glassmorphism clutter):
+
+| Portal | Target User | Dedicated Port | Dev Command | Key Responsibilities |
+|---|---|---|---|---|
+| **Driver Portal** | Renters / Drivers | `http://localhost:3110` | `npm run dev:driver` | Scooty catalog, KYC verification, wallet recharge (₹500 min), booking, active rental duration tracker, return vehicle request |
+| **Fleet Owner Portal** | Scooty / Bike Owners | `http://localhost:6782` | `npm run dev:owner` | Scooty listing (RC, pricing, deposit), fleet status, booking approvals, vehicle return inspection, damage assessment & deposit refund |
+| **Admin Portal** | System Administrators | `http://localhost:5431` | `npm run dev:admin` | Executive dashboard (Gross Revenue, 10% platform cut, fleet stats), KYC verification (drivers & owners), scooty approvals, user moderation (block/unblock), broadcasts |
+| **All Portals** | Multi-Dev Runner | All 3 ports concurrently | `npm run dev` | Spawns all 3 portals simultaneously using `concurrently` |
+| **Portal Gateway** | Hub / Selector | `http://localhost:3000` | `npx vite` | Root launchpad for jumping directly into any of the 3 portals |
+
+---
+
+## 🔄 End-to-End Rental Workflow & Business Logic
+
+The platform strictly enforces the complete scooty rental lifecycle:
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│ 1. ONBOARDING & VERIFICATION                                                          │
+│   • Driver uploads Driving License & Aadhaar → Admin verifies documents               │
+│   • Owner uploads ID & Bank Account details → Admin verifies payout credentials       │
+│   • Owner lists Scooty (RC copy, photos, rent/day, deposit) → Admin verifies listing  │
+├────────────────────────────────────────────────────────────────────────────────────────┤
+│ 2. WALLET RECHARGE & BOOKING                                                           │
+│   • Driver recharges wallet via Razorpay (strict minimum recharge policy: ₹500)       │
+│   • Driver browses verified scooties                                                  │
+│   • System enforces: Driver Wallet Balance >= (Rent + Security Deposit)                │
+│   • System enforces: Maximum 1 active rental per driver at any given time             │
+│   • Driver submits booking request → Owner receives instant alert                     │
+├────────────────────────────────────────────────────────────────────────────────────────┤
+│ 3. DISPATCH & ACTIVE RENTAL                                                            │
+│   • Owner reviews and accepts booking request                                         │
+│   • System locks/deducts rent and security deposit from driver wallet                 │
+│   • Scooty state transitions to RENTED; ActiveAssignment is created                    │
+│   • Driver dashboard displays live rental timer, rate, and emergency controls         │
+├────────────────────────────────────────────────────────────────────────────────────────┤
+│ 4. RETURN, INSPECTION & DEPOSIT REFUND                                                 │
+│   • Driver requests return via Driver Portal (`POST /driver/assignment/request-return`)│
+│   • Owner performs vehicle inspection and inputs damage assessment charges (if any)   │
+│   • Owner confirms return:                                                            │
+│       - Scooty transitions back to AVAILABLE                                          │
+│       - Net Deposit = (Security Deposit - Damage Charges) is refunded to Driver wallet│
+│       - Platform earns 10% commission on rental earnings                              │
+└────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🛠️ Architecture & Tech Stack
 
 ### 1. Backend (`/Backend`)
-- **Framework**: Python 3.12 + FastAPI (Async REST API & Socket.IO WebSockets)
+- **Framework**: Python 3.12 + FastAPI (Async REST API & WebSockets)
 - **Database**: PostgreSQL 15 + SQLAlchemy 2.0 ORM with Alembic schema migrations
-- **Caching & Queues**: Redis + Socket.IO (Real-time notification engine)
-- **Authentication**: JWT Access & Refresh Token authentication with HTTP-only cookies, Bcrypt password hashing, and role-based access control (Driver, Owner, Admin)
-- **Background Cron Worker**: Async background worker loop processing auto-collections, overdue penalties, and scheduled jobs (`app/cron/scheduler.py`)
-- **Testing**: Pytest test suite with 100% execution coverage across auth, driver, owner, wallet, support, and cron modules
+- **Caching & Real-time**: Redis + Socket.IO notification engine
+- **Authentication**: JWT Access & Refresh Token authentication, Bcrypt hashing, role-based guards (`driver`, `owner`, `admin`)
+- **Scheduled Background Worker**: Cron worker processing overdue rentals, late fees, and automatic settlements
+- **Reliable APIs Added**:
+  - `GET /admin/drivers` - Lists all drivers with document verification status
+  - `GET /admin/owners` - Lists all fleet owners with KYC and bank payout statuses
+  - `GET /admin/bikes` - Lists all bikes with approval queues and specifications
+  - `GET /admin/users` - User directory with block/unblock controls
+  - `GET /owner/booking-requests` - Owner queue for incoming booking requests
+  - `GET /owner/active-rentals` - Active scooty assignments for return inspections
+  - `POST /driver/assignment/request-return` - Driver vehicle return notification trigger
 
 ### 2. Frontend (`/Frontend`)
-- **Framework**: React 18 + TypeScript + Vite + TailwindCSS + Lucide Icons
-- **State & Auth**: React Context API (`AuthContext`) managing JWT sessions, wallet balance, and active workspace state
-- **Dashboards & Views**:
-  - **Driver Workspace** (`DriverView.tsx`): Bike search & filter grid, KYC document upload (Aadhaar/License), active rental duration timer, wallet transaction history, and support tickets
-  - **Owner Workspace** (`OwnerView.tsx`): Fleet overview, earnings & rental metrics, bike listing manager with RC/image uploads, booking request approvals
-  - **Admin Workspace** (`AdminView.tsx`): System KPI metrics (Platform Revenue, Commission, Active Rentals), user verification table, bike listing queue, broadcast notifications console, audit logs
-  - **Global Navigation** (`Navbar.tsx`): Real-time Socket.IO notification bell dropdown, live wallet balance top-up modal (`WalletModal.tsx`), workspace switcher
-
-### 3. Docker & Infrastructure (`docker-compose.yml`)
-- **Multi-Container Architecture**:
-  - `db`: PostgreSQL 15-Alpine database container
-  - `redis`: Redis 7-Alpine cache & pub/sub message broker
-  - `backend`: FastAPI API service container
-  - `worker`: Background cron worker processing background tasks
-  - `nginx`: Reverse proxy routing frontend assets and API endpoints
-- **Production Frontend Dockerfile**: Multi-stage `node:20-alpine` build + `nginx:alpine` serving
-
-### 4. Automated CI/CD Pipeline (`.github/workflows/ci-cd.yml`)
-- **Linting & Code Quality**: Flake8 linting (`--select=E9,F63,F7,F82`)
-- **Database Migrations**: Automated schema migration against test PostgreSQL database
-- **Pytest Execution**: Automated backend test suite execution
-- **Frontend Build Verification**: Node.js 20 environment setup, dependency installation (`npm ci`), and Vite bundle compilation (`npm run build`)
-- **Container Build Verification**: Automated multi-container Docker image build for Backend & Frontend
-
----
-
-## 🔑 Key Features Implemented
-
-1. **Authentication & Multi-Role Governance**:
-   - Driver, Owner, and Admin workspace switching with secure JWT session handling.
-
-2. **Wallet & Payment Ecosystem**:
-   - Razorpay payment gateway integration, instant wallet top-up, automated debit on booking, credit on owner payouts, and negative balance support for late fees.
-
-3. **Fleet Management & Rental Workflow**:
-   - Owners list bikes with pricing, RC documents, and photos.
-   - Drivers search bikes by brand, fuel type, city, filter by price, and request bookings.
-   - Owners accept/reject booking requests in real-time.
-
-4. **Real-Time WebSockets & Notifications**:
-   - Socket.IO server emitting realtime events (`booking_updated`, `payment_completed`, `admin_broadcast`).
-   - React navbar notification bell with unread counters and live drop-downs.
-
-5. **Analytics & Reports Dashboard**:
-   - Admin KPI summary metrics: Platform Revenue, Gross Rental Collections, Active Bookings, System Commission.
-   - Owner earnings summary and transaction history.
-
-6. **Scheduled Background Jobs**:
-   - Cron worker automatically processes overdue rentals, calculates daily late penalties, and updates system ledgers.
+- **Framework**: React 19 + TypeScript + Vite 8 + TailwindCSS 4 + Lucide Icons
+- **Separated Apps**:
+  - `Frontend/driver/` (`vite.driver.config.ts`, port `3110`)
+  - `Frontend/owner/` (`vite.owner.config.ts`, port `6782`)
+  - `Frontend/admin/` (`vite.admin.config.ts`, port `5431`)
+- **Shared Logic**: `Frontend/shared/api.ts` (Axios client with JWT interceptor) & `Frontend/shared/types.ts` (Strongly-typed data contracts)
+- **Design System**: Accessible, clean, modern interfaces with distinct role themes (Slate/Emerald for Drivers, Zinc/Indigo for Owners, Slate/Violet for Admins).
 
 ---
 
 ## ⚡ Quick Start / Local Setup
 
-### Running with Docker Compose (Recommended)
+### 1. Running Frontend Portals
 ```bash
-docker-compose up --build
-```
-Access points:
-- **Frontend UI**: `http://localhost`
-- **Backend API Docs**: `http://localhost:8000/docs`
+cd Frontend
+npm install
 
-### Running Backend Locally
+# Option A: Run all 3 portals concurrently:
+npm run dev
+
+# Option B: Run individual portals independently:
+npm run dev:driver   # Starts Driver Portal on http://localhost:3110
+npm run dev:owner    # Starts Owner Portal on http://localhost:6782
+npm run dev:admin    # Starts Admin Portal on http://localhost:5431
+```
+
+### 2. Running Backend API
 ```bash
 cd Backend
 python -m venv venv
-.\venv\Scripts\activate  # Windows
+.\venv\Scripts\activate  # Windows (or source venv/bin/activate on macOS/Linux)
 pip install -r requirements.txt
 python -m app.db.migrate
 uvicorn main:app --reload --port 8000
 ```
+Backend Swagger API Docs: `http://localhost:8000/docs`
 
-### Running Frontend Locally
+### 3. Running with Docker Compose
 ```bash
-cd Frontend
-npm install
-npm run dev
+docker-compose up --build
 ```
+Access points:
+- **Backend API**: `http://localhost:8000` / `http://localhost/docs`
+- **Postgres Database**: `localhost:5432`
+- **Redis Cache**: `localhost:6379`
 
 ---
 

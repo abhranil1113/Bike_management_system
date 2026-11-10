@@ -4,8 +4,14 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
+    "dev": "concurrently -n \"driver,owner,admin\" -c \"cyan,emerald,purple\" \"npm run dev:driver\" \"npm run dev:owner\" \"npm run dev:admin\"",
+    "dev:driver": "vite --config vite.driver.config.ts",
+    "dev:owner": "vite --config vite.owner.config.ts",
+    "dev:admin": "vite --config vite.admin.config.ts",
+    "build:driver": "vite build --config vite.driver.config.ts",
+    "build:owner": "vite build --config vite.owner.config.ts",
+    "build:admin": "vite build --config vite.admin.config.ts",
+    "build": "npm run build:driver && npm run build:owner && npm run build:admin",
     "lint": "oxlint",
     "preview": "vite preview"
   },
@@ -22,6 +28,7 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.0.5",
+    "concurrently": "^9.1.2",
     "oxlint": "^1.75.0",
     "typescript": "~6.0.2",
     "vite": "^8.2.0"

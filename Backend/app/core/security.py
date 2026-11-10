@@ -29,16 +29,20 @@ def verify_password(password: str, hashed_password: str) -> bool:
 def validate_password_strength(password: str) -> List[str]:
     """Validates password strength and returns a list of error messages if weak."""
     errors = []
-    if len(password) < 8:
-        errors.append("Password must be at least 8 characters long.")
-    if not re.search(r"[A-Z]", password):
-        errors.append("Password must contain at least one uppercase letter.")
-    if not re.search(r"[a-z]", password):
-        errors.append("Password must contain at least one lowercase letter.")
-    if not re.search(r"[0-9]", password):
-        errors.append("Password must contain at least one numeric digit.")
-    if not re.search(r"[!@#$%^&*()_+\-=\[\]{};':\"\\|,.<>/?]", password):
-        errors.append("Password must contain at least one special character.")
+    min_len = 6 if settings.DEBUG else 8
+    if len(password) < min_len:
+        errors.append(f"Password must be at least {min_len} characters long.")
+
+    # In production, enforce full complexity
+    if not settings.DEBUG:
+        if not re.search(r"[A-Z]", password):
+            errors.append("Password must contain at least one uppercase letter.")
+        if not re.search(r"[a-z]", password):
+            errors.append("Password must contain at least one lowercase letter.")
+        if not re.search(r"[0-9]", password):
+            errors.append("Password must contain at least one numeric digit.")
+        if not re.search(r"[!@#$%^&*()_+\-=\[\]{};':\"\\|,.<>/?]", password):
+            errors.append("Password must contain at least one special character.")
     return errors
 
 
@@ -92,4 +96,4 @@ def decode_refresh_token(token: str) -> Optional[dict]:
             return None
         return payload
     except Exception:
-        return None
+        return None

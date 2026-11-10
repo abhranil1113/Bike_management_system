@@ -1,152 +1,220 @@
-import React, { useState } from 'react';
-import { AuthProvider, useAuth } from './context/AuthContext';
-import { Navbar } from './components/Navbar';
-import { DriverView } from './components/DriverView';
-import { OwnerView } from './components/OwnerView';
-import { AdminView } from './components/AdminView';
-import { WalletModal } from './components/WalletModal';
-import { AuthModal } from './components/AuthModal';
-import { Car, Key, ShieldCheck, Sparkles } from 'lucide-react';
-
-const MainLayout: React.FC = () => {
-  const { currentRole, switchRole } = useAuth();
-  const [isWalletOpen, setIsWalletOpen] = useState(false);
-  const [isAuthOpen, setIsAuthOpen] = useState(false);
-
-  return (
-    <div className="min-h-screen flex flex-col justify-between">
-      
-      <div>
-        <Navbar
-          onOpenAuth={() => setIsAuthOpen(true)}
-          onOpenWallet={() => setIsWalletOpen(true)}
-        />
-
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-          
-          {/* Prominent Role Workspace Switcher Bar */}
-          <div className="glass-panel rounded-3xl p-4 sm:p-6 border border-cyan-500/20 glow-cyan">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5">
-              <div>
-                <h2 className="text-xl font-black text-white flex items-center space-x-2">
-                  <span>Bike Management System</span>
-                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 font-bold uppercase tracking-wider flex items-center space-x-1">
-                    <Sparkles className="w-3 h-3" />
-                    <span>3 Workspaces Active</span>
-                  </span>
-                </h2>
-                <p className="text-xs text-slate-400 mt-1">
-                  Click any workspace tab below to view and test the <b>Driver</b>, <b>Owner</b>, or <b>Admin</b> panels live.
-                </p>
-              </div>
-            </div>
-
-            {/* Big Interactive Role Workspace Selector Tabs */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              
-              {/* Driver Tab */}
-              <button
-                onClick={() => switchRole('driver')}
-                className={`p-4 rounded-2xl border text-left transition-all duration-200 cursor-pointer flex items-center space-x-3 ${
-                  currentRole === 'driver'
-                    ? 'bg-gradient-to-r from-cyan-500/20 to-blue-600/20 border-cyan-400 text-white shadow-lg shadow-cyan-500/15 glow-cyan'
-                    : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-white'
-                }`}
-              >
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold shrink-0 ${
-                  currentRole === 'driver' ? 'bg-cyan-500 text-slate-950' : 'bg-slate-800 text-slate-400'
-                }`}>
-                  <Car className="w-5 h-5" />
-                </div>
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-wider text-cyan-400">Driver Portal</p>
-                  <p className="text-sm font-black text-white">Search & Rent Bikes</p>
-                  <p className="text-[10px] text-slate-400 mt-0.5">Wallet top-up & booking rules</p>
-                </div>
-              </button>
-
-              {/* Owner Tab */}
-              <button
-                onClick={() => switchRole('owner')}
-                className={`p-4 rounded-2xl border text-left transition-all duration-200 cursor-pointer flex items-center space-x-3 ${
-                  currentRole === 'owner'
-                    ? 'bg-gradient-to-r from-emerald-500/20 to-teal-600/20 border-emerald-400 text-white shadow-lg shadow-emerald-500/15 glow-emerald'
-                    : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-white'
-                }`}
-              >
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold shrink-0 ${
-                  currentRole === 'owner' ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-400'
-                }`}>
-                  <Key className="w-5 h-5" />
-                </div>
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-wider text-emerald-400">Owner Portal</p>
-                  <p className="text-sm font-black text-white">Fleet & Bookings</p>
-                  <p className="text-[10px] text-slate-400 mt-0.5">Add bikes & return inspection</p>
-                </div>
-              </button>
-
-              {/* Admin Tab */}
-              <button
-                onClick={() => switchRole('admin')}
-                className={`p-4 rounded-2xl border text-left transition-all duration-200 cursor-pointer flex items-center space-x-3 ${
-                  currentRole === 'admin'
-                    ? 'bg-gradient-to-r from-purple-500/20 to-indigo-600/20 border-purple-400 text-white shadow-lg shadow-purple-500/15'
-                    : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-white'
-                }`}
-              >
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold shrink-0 ${
-                  currentRole === 'admin' ? 'bg-purple-500 text-white' : 'bg-slate-800 text-slate-400'
-                }`}>
-                  <ShieldCheck className="w-5 h-5" />
-                </div>
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-wider text-purple-400">Admin Panel</p>
-                  <p className="text-sm font-black text-white">Executive Control</p>
-                  <p className="text-[10px] text-slate-400 mt-0.5">KPIs, users & approvals</p>
-                </div>
-              </button>
-
-            </div>
-          </div>
-
-          {/* Active Workspace Container */}
-          <div className="space-y-6">
-            {currentRole === 'driver' && <DriverView onOpenWallet={() => setIsWalletOpen(true)} />}
-            {currentRole === 'owner' && <OwnerView />}
-            {currentRole === 'admin' && <AdminView />}
-          </div>
-
-        </main>
-      </div>
-
-      {/* Footer */}
-      <footer className="glass-panel border-t border-slate-800/80 py-6 mt-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-400">
-          <p>© 2026 VeloRent Pro — Full Stack Bike Rental & Fleet Management System.</p>
-          <div className="flex items-center space-x-4">
-            <span className="flex items-center space-x-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span>FastAPI Backend Connected (Port 8000)</span>
-            </span>
-          </div>
-        </div>
-      </footer>
-
-      {/* Modals */}
-      <WalletModal isOpen={isWalletOpen} onClose={() => setIsWalletOpen(false)} />
-      <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
-
-    </div>
-  );
-};
+import React from 'react';
+import { Bike, ShieldCheck, Key, ExternalLink, ArrowRight, Zap, CheckCircle2, ChevronRight, Activity, Wallet } from 'lucide-react';
 
 export function App() {
   return (
-    <AuthProvider>
-      <MainLayout />
-    </AuthProvider>
+    <div className="min-h-screen bg-[#f4f8f6] text-slate-800 flex flex-col justify-between font-sans">
+
+      {/* Top Banner */}
+      <header className="border-b border-slate-200/80 bg-white/80 backdrop-blur-md sticky top-0 z-20">
+        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-800 font-bold shadow-xs">
+              <Bike className="w-5 h-5 text-emerald-700" />
+            </div>
+            <div>
+              <span className="text-base font-bold text-slate-900 tracking-tight">VeloRent</span>
+              <span className="text-[10px] px-2 py-0.5 ml-2 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold uppercase tracking-wider">
+                Multi-Port System
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center space-x-2 text-xs font-semibold text-emerald-800">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span>FastAPI Backend Ready (Port 8000)</span>
+          </div>
+        </div>
+      </header>
+
+      {/* Hero Greeting & Port Selector */}
+      <main className="max-w-6xl mx-auto px-6 py-10 flex-1 w-full space-y-8">
+
+        {/* Hero Greeting Banner matching the screenshot */}
+        <div className="bg-gradient-to-r from-[#0d5940] via-[#0e6b4e] to-[#0a4a35] text-white rounded-3xl p-8 shadow-sm relative overflow-hidden">
+          <div className="absolute right-0 top-0 bottom-0 w-80 bg-white/5 rounded-l-full pointer-events-none"></div>
+
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <p className="text-[11px] font-bold tracking-wider text-emerald-200/90 uppercase">
+                {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+              </p>
+              <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight mt-1 text-white">
+                VeloRent Workspace Hub
+              </h1>
+              <p className="text-xs md:text-sm text-emerald-100/90 mt-1">
+                Each portal runs independently on its designated port with customized workflows and permissions.
+              </p>
+
+              <div className="flex items-center gap-2 mt-4">
+                <span className="px-3 py-1 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full text-xs font-semibold text-white">
+                  3 Portals Architecture
+                </span>
+                <span className="px-3 py-1 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full text-xs font-medium text-emerald-100">
+                  Driver, Owner & Admin Operations
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="px-4 py-2 bg-white/15 backdrop-blur-sm border border-white/20 rounded-full text-xs font-semibold text-white flex items-center gap-2">
+                <Activity className="w-3.5 h-3.5" />
+                <span>All Services Operational</span>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* 3 Dedicated Portal Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+          {/* 1. Driver Portal */}
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-6 group">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
+                  <Bike className="w-5 h-5" />
+                </div>
+                <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                  PORT 3110
+                </span>
+              </div>
+
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Driver Portal</h3>
+                <p className="text-xs text-emerald-700 font-semibold mt-0.5">Scooty Rental & Renter Operations</p>
+                <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+                  Browse scooties, upload driving license & Aadhaar, recharge wallet (₹500 min policy), book with deposit locks, and request return inspections.
+                </p>
+              </div>
+
+              <div className="space-y-1.5 text-xs text-slate-600 font-medium pt-2 border-t border-slate-100">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Wallet recharge (Razorpay min ₹500)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Active rental duration tracker</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Single active rental limit enforcement</span>
+                </div>
+              </div>
+            </div>
+
+            <a
+              href="http://localhost:3110"
+              target="_blank"
+              rel="noreferrer"
+              className="w-full py-2.5 px-4 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs flex items-center justify-center space-x-2 transition shadow-xs group-hover:translate-y-[-1px]"
+            >
+              <span>Launch Driver Portal</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          </div>
+
+          {/* 2. Owner Portal */}
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-6 group">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center font-bold">
+                  <Key className="w-5 h-5" />
+                </div>
+                <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-full bg-blue-50 text-blue-800 border border-blue-200">
+                  PORT 6782
+                </span>
+              </div>
+
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Fleet Owner Portal</h3>
+                <p className="text-xs text-blue-700 font-semibold mt-0.5">Scooty Owners & Fleet Managers</p>
+                <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+                  List scooties with RC documents and deposit pricing, accept/reject booking requests, conduct return inspections, record damages, and refund deposits.
+                </p>
+              </div>
+
+              <div className="space-y-1.5 text-xs text-slate-600 font-medium pt-2 border-t border-slate-100">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  <span>List scooties with RC & deposit</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  <span>Booking request queue (Accept/Reject)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  <span>Vehicle inspection & damage refund dialog</span>
+                </div>
+              </div>
+            </div>
+
+            <a
+              href="http://localhost:6782"
+              target="_blank"
+              rel="noreferrer"
+              className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center space-x-2 transition shadow-xs group-hover:translate-y-[-1px]"
+            >
+              <span>Launch Owner Portal</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          </div>
+
+          {/* 3. Admin Portal */}
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-6 group">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-full bg-purple-50 text-purple-800 border border-purple-200">
+                  PORT 5431
+                </span>
+              </div>
+
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Admin Governance Portal</h3>
+                <p className="text-xs text-purple-700 font-semibold mt-0.5">Executive & Verification Oversight</p>
+                <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+                  Verify driver DL/Aadhaar documents, approve owner bank accounts & scooty RC listings, track gross revenue and 10% platform cuts, and moderate users.
+                </p>
+              </div>
+
+              <div className="space-y-1.5 text-xs text-slate-600 font-medium pt-2 border-t border-slate-100">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                  <span>Driver & Owner KYC verification queues</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                  <span>Scooty RC and pricing approval</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                  <span>10% commission tracking & broadcast alerts</span>
+                </div>
+              </div>
+            </div>
+
+            <a
+              href="http://localhost:5431"
+              target="_blank"
+              rel="noreferrer"
+              className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center space-x-2 transition shadow-xs group-hover:translate-y-[-1px]"
+            >
+              <span>Launch Admin Portal</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          </div>
+
+        </div>
+      </main>
+
+      {/* Footer */}
+      <footer className="border-t border-slate-200/80 bg-white py-4 text-center text-xs text-slate-500">
+        <p>VeloRent Enterprise Scooty & Bike Rental Architecture • Multi-Port Separation (Ports 3110, 6782, 5431)</p>
+      </footer>
+    </div>
   );
 }
-
-export default App;

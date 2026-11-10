@@ -50,7 +50,9 @@ async def register_api(
     db: Session = Depends(get_db)
 ):
     ip, ua = get_client_info(request)
+    print(f"[AUTH API] Registering new user: email={req.email}, role={req.role}, phone={req.phone}")
     result = await register_user(db, req, ip_address=ip, user_agent=ua)
+    print(f"[AUTH API] Registration SUCCESS: user_id={result['user']['id']}, email={result['user']['email']}")
     return StandardResponse(
         success=True,
         message="Registration successful.",
@@ -65,7 +67,9 @@ async def login_api(
     db: Session = Depends(get_db)
 ):
     ip, ua = get_client_info(request)
+    print(f"[AUTH API] Login attempt: email={req.email}")
     result = await login_user(db, req, ip_address=ip, user_agent=ua)
+    print(f"[AUTH API] Login SUCCESS: user_id={result['user']['id']}, email={result['user']['email']}")
     return StandardResponse(
         success=True,
         message="Login successful.",
